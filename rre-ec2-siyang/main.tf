@@ -138,9 +138,26 @@ locals {
 }
 
 # ------------------------------------------------------------------------------
+# ALB SECURITY GROUP
+# ------------------------------------------------------------------------------
+module "alb_security_group" {
+  source                   = "../modules/module-sg"
+  project_name             = local.project_name
+  resource_type            = "ALB"
+  region                   = local.region
+  vpc_id                   = local.vpc_id
+  default_tags             = local.default_tags
+  jump_host_security_group = local.jump_host_security_group
+  client_laptops_ip        = local.client_laptops_ip
+  jump_hosts_ip            = local.jump_hosts_ip
+  security_group_map       = local.security_group_map_alb
+}
+
+# ------------------------------------------------------------------------------
 # EC2 SECURITY GROUP
 # ------------------------------------------------------------------------------
 module "security_groups" {
+  # depends_on = [module.alb_security_group]
   source                   = "../modules/module-sg"
   project_name             = local.project_name
   resource_type            = "EC2"
@@ -150,7 +167,13 @@ module "security_groups" {
   jump_host_security_group = local.jump_host_security_group
   client_laptops_ip        = local.client_laptops_ip
   jump_hosts_ip            = local.jump_hosts_ip
-  security_group_map       = local.security_group_map
+  # security_group_map       = local.security_group_map
+  security_group_map  = merge(local.security_group_map,{ "description 4" = {
+      port            = 8080,
+      cidr_blocks     = null,
+      security_groups = [module.alb_security_group.sg_id],
+      protocol        = "tcp"
+    }} )
 }
 
 # ------------------------------------------------------------------------------
@@ -192,23 +215,6 @@ output "aws_ec2_instance_id" {
   value = module.ec2_webserver.aws_ec2_instance_id
 }
 
-# ------------------------------------------------------------------------------
-# ALB SECURITY GROUP
-# ------------------------------------------------------------------------------
-module "alb_security_group" {
-  source                   = "../modules/module-sg"
-  project_name             = local.project_name
-  resource_type            = "ALB"
-  region                   = local.region
-  vpc_id                   = local.vpc_id
-  default_tags             = local.default_tags
-  jump_host_security_group = local.jump_host_security_group
-  client_laptops_ip        = local.client_laptops_ip
-  jump_hosts_ip            = local.jump_hosts_ip
-  security_group_map       = local.security_group_map_alb
-}
-
-
 
 # ------------------------------------------------------------------------------
 # ALB APPLICATION LOAD BALANCER
@@ -224,4 +230,16 @@ module "alb_ec2" {
   domain_certificate_arn = data.aws_acm_certificate.ecs_domain_certificate.arn
   domain_name = local.domain_name
   aws_ec2_instance_id = module.ec2_webserver.aws_ec2_instance_id
+}
+# ------------------------------------------------------------------------------
+# ROUTE53 DOMAIN UPDATES
+# ------------------------------------------------------------------------------
+module "route53_domain" {
+  depends_on = [module.alb_ec2]
+  source = "../modules/module-route53"
+  domain_name = local.domain_name
+  hosts2 = local.hosts2
+  zone_id = data.aws_route53_zone.ecs_domain.zone_id
+  aws_alb_dnsname = module.alb_ec2.aws_alb_dnsname
+  aws_alb_zoneid = module.alb_ec2.aws_alb_zoneid
 }
