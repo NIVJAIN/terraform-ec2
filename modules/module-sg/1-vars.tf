@@ -8,6 +8,9 @@ variable "project_name" {
   description = "Project name,this name will be used for naming resources"
 }
 
+variable "resource_type" {
+}
+
 variable "vpc_id" {
   default     = "vpc-028b7724ac0331752"
   description = "AWS Region"

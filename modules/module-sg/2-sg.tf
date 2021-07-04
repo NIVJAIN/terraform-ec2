@@ -6,7 +6,7 @@ provider "aws" {
 }
 
 resource "aws_security_group" "webserver-sg-group" {
-  name = "${var.project_name}-EC2-SG"
+  name = "${var.project_name}-${var.resource_type}-SG"
   # name_prefix = var.project_name
   description = var.project_name
   vpc_id      = var.vpc_id
@@ -40,7 +40,7 @@ resource "aws_security_group" "webserver-sg-group" {
     tags = merge(
     var.default_tags,
     {
-      Name = "${var.project_name}-EC2"
+      Name = "${var.project_name}-${var.resource_type}"
     }
   )
   lifecycle {
