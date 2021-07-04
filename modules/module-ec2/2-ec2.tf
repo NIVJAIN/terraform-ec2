@@ -40,7 +40,7 @@ resource "aws_instance" "ec2-webserver" {
   # vpc_security_group_ids = [aws_security_group.webserver-sg-group.id]
   vpc_security_group_ids = [var.sec_grp_id]
   #   security_groups        = [aws_security_group.webserver-sg-group.id] dont use this , when you re run terraform, it will destory and will recreate the resources.
-  user_data = base64encode(data.template_file.user_data_hw.rendered)
+  # user_data = base64encode(data.template_file.user_data_hw.rendered)
   tags = merge(
     var.default_tags,
     {

@@ -203,7 +203,7 @@ module "ec2_webserver" {
   jump_hosts_ip            = local.jump_hosts_ip
   # domain_name              = local.domain_name
   # domain_host_name         = local.domain_host_name
-  availability_zones = local.availability_zones
+  # availability_zones = local.availability_zones
 
 }
 
@@ -231,9 +231,9 @@ module "alb_ec2" {
   domain_name = local.domain_name
   aws_ec2_instance_id = module.ec2_webserver.aws_ec2_instance_id
 }
-# ------------------------------------------------------------------------------
-# ROUTE53 DOMAIN UPDATES
-# ------------------------------------------------------------------------------
+# # ------------------------------------------------------------------------------
+# # ROUTE53 DOMAIN UPDATES
+# # ------------------------------------------------------------------------------
 module "route53_domain" {
   depends_on = [module.alb_ec2]
   source = "../modules/module-route53"
