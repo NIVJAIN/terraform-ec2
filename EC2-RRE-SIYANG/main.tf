@@ -39,7 +39,7 @@ data "aws_acm_certificate" "ecs_domain_certificate" {
 # ------------------------------------------------------------------------------
 
 locals {
-  project_name       = "RRE-PROD"
+  project_name       = "RRE-STAGING-1"
   region             = "ap-southeast-1"
   init_tpl_file_name = "init.tpl"
   #   ami_id           = "ami-0d058fe428540cd89" #ububtu
@@ -47,7 +47,7 @@ locals {
   public_subnet_id         = "subnet-08b1ad0d7506dca3f"
   private_subnet_id        = "subnet-08b1ad0d7506dca3f"
   instance_type            = "t2.small"
-  root_volume_size         = "80"
+  root_volume_size         = "30"
   pem_file_name_wo_dot_pem = "RecommedationEngineeKP"
   vpc_id                   = "vpc-028b7724ac0331752"
   jump_host_security_group = ["sg-021bf7f871be99f3e", "sg-05057e074f565c0fa", "sg-0cc362e87c48e58ce"]
@@ -78,7 +78,7 @@ locals {
       protocol        = "tcp"
     }
     "description 3" = {
-      port            = 5009,
+      port            = 5003,
       cidr_blocks     = null,
       security_groups = local.lambda_rre_sg_id,
       protocol        = "tcp"
@@ -137,21 +137,6 @@ locals {
   }
 }
 
-# ------------------------------------------------------------------------------
-# ALB SECURITY GROUP
-# ------------------------------------------------------------------------------
-module "alb_security_group" {
-  source                   = "../modules/module-sg"
-  project_name             = local.project_name
-  resource_type            = "ALB"
-  region                   = local.region
-  vpc_id                   = local.vpc_id
-  default_tags             = local.default_tags
-  jump_host_security_group = local.jump_host_security_group
-  client_laptops_ip        = local.client_laptops_ip
-  jump_hosts_ip            = local.jump_hosts_ip
-  security_group_map       = local.security_group_map_alb
-}
 
 # ------------------------------------------------------------------------------
 # EC2 SECURITY GROUP
@@ -167,13 +152,13 @@ module "security_groups" {
   jump_host_security_group = local.jump_host_security_group
   client_laptops_ip        = local.client_laptops_ip
   jump_hosts_ip            = local.jump_hosts_ip
-  # security_group_map       = local.security_group_map
-  security_group_map  = merge(local.security_group_map,{ "description 4" = {
-      port            = 8080,
-      cidr_blocks     = null,
-      security_groups = [module.alb_security_group.sg_id],
-      protocol        = "tcp"
-    }} )
+  security_group_map       = local.security_group_map
+  # security_group_map  = merge(local.security_group_map,{ "description 4" = {
+  #     port            = 8080,
+  #     cidr_blocks     = null,
+  #     security_groups = [module.alb_security_group.sg_id],
+  #     protocol        = "tcp"
+  #   }} )
 }
 
 # ------------------------------------------------------------------------------
@@ -216,30 +201,80 @@ output "aws_ec2_instance_id" {
 }
 
 
-# ------------------------------------------------------------------------------
-# ALB APPLICATION LOAD BALANCER
-# ------------------------------------------------------------------------------
-module "alb_ec2" {
-  source = "../modules/module-alb"
-  depends_on = [module.alb_security_group, module.ec2_webserver]
-  project_name = local.project_name
-  public_subnets = local.public_subnets
-  alb_security_group = [module.alb_security_group.sg_id]
-  default_tags = local.default_tags
-  hosts2 = local.hosts2
-  domain_certificate_arn = data.aws_acm_certificate.ecs_domain_certificate.arn
-  domain_name = local.domain_name
-  aws_ec2_instance_id = module.ec2_webserver.aws_ec2_instance_id
+resource "null_resource" "test_box" {
+  depends_on = [module.ec2_webserver]
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo yum update -y",
+      "sudo amazon-linux-extras install docker -y",
+      "sudo service docker start",
+      "sudo usermod -a -G docker ec2-user",
+      "sudo chmod 666 /var/run/docker.sock",
+      "sudo curl -L https://github.com/docker/compose/releases/download/1.25.4/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose",
+      "sudo chmod +x /usr/local/bin/docker-compose",
+      # "su -s ec2-user",
+      "docker run --name mynginx1 -p 8080:80 -d nginx"
+    ]
+    connection {
+      type        = "ssh"
+      user        = "ec2-user"
+      # private_key = file(var.private_key_path)
+      # private_key = "/Users/blockchain/RecommedationEngineeKP.pem"
+      private_key = file("${path.module}/RecommedationEngineeKP.pem")
+      host        = module.ec2_webserver.ec2_public_ip
+    }
+  }
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Create sh files for ec2 ssh login and running playbook during development work"
+      echo ssh -i RecommedationEngineeKP.pem ec2-user@${module.ec2_webserver.ec2_public_ip} > amazonlinux2.sh
+      echo ansible-playbook -i ${module.ec2_webserver.ec2_public_ip}, --user ubuntu --private-key RecommedationEngineeKP.pem ansible_playbook > run_playbook.sh
+    EOT
+  }
 }
+
+
 # # ------------------------------------------------------------------------------
-# # ROUTE53 DOMAIN UPDATES
+# # ALB SECURITY GROUP
 # # ------------------------------------------------------------------------------
-module "route53_domain" {
-  depends_on = [module.alb_ec2]
-  source = "../modules/module-route53"
-  domain_name = local.domain_name
-  hosts2 = local.hosts2
-  zone_id = data.aws_route53_zone.ecs_domain.zone_id
-  aws_alb_dnsname = module.alb_ec2.aws_alb_dnsname
-  aws_alb_zoneid = module.alb_ec2.aws_alb_zoneid
-}
+# module "alb_security_group" {
+#   source                   = "../modules/module-sg"
+#   project_name             = local.project_name
+#   resource_type            = "ALB"
+#   region                   = local.region
+#   vpc_id                   = local.vpc_id
+#   default_tags             = local.default_tags
+#   jump_host_security_group = local.jump_host_security_group
+#   client_laptops_ip        = local.client_laptops_ip
+#   jump_hosts_ip            = local.jump_hosts_ip
+#   security_group_map       = local.security_group_map_alb
+# }
+
+# # ------------------------------------------------------------------------------
+# # ALB APPLICATION LOAD BALANCER
+# # ------------------------------------------------------------------------------
+# module "alb_ec2" {
+#   source = "../modules/module-alb"
+#   depends_on = [module.alb_security_group, module.ec2_webserver]
+#   project_name = local.project_name
+#   public_subnets = local.public_subnets
+#   alb_security_group = [module.alb_security_group.sg_id]
+#   default_tags = local.default_tags
+#   hosts2 = local.hosts2
+#   domain_certificate_arn = data.aws_acm_certificate.ecs_domain_certificate.arn
+#   domain_name = local.domain_name
+#   aws_ec2_instance_id = module.ec2_webserver.aws_ec2_instance_id
+# }
+# # # ------------------------------------------------------------------------------
+# # # ROUTE53 DOMAIN UPDATES
+# # # ------------------------------------------------------------------------------
+# module "route53_domain" {
+#   depends_on = [module.alb_ec2]
+#   source = "../modules/module-route53"
+#   domain_name = local.domain_name
+#   hosts2 = local.hosts2
+#   zone_id = data.aws_route53_zone.ecs_domain.zone_id
+#   aws_alb_dnsname = module.alb_ec2.aws_alb_dnsname
+#   aws_alb_zoneid = module.alb_ec2.aws_alb_zoneid
+# }
