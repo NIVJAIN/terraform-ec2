@@ -48,6 +48,7 @@ locals {
   private_subnet_id        = "subnet-08b1ad0d7506dca3f"
   instance_type            = "t2.small"
   root_volume_size         = "80"
+  ansible_playbook = "${path.module}/../ansible/nginx.yaml"
   pem_file_name_wo_dot_pem = "RecommedationEngineeKP"
   vpc_id                   = "vpc-028b7724ac0331752"
   jump_host_security_group = ["sg-021bf7f871be99f3e", "sg-05057e074f565c0fa", "sg-0cc362e87c48e58ce"]
@@ -103,7 +104,7 @@ locals {
     Owner          = "Siyang"
     Project        = "RRE-STAGING"
     Requestor      = "Siyang"
-    Creator        = "CloudTFEngineer"
+    Creator        = "CloudTFEngineer-JAIN"
     Terraform      = "True"
     Scheduled      = "True"
     Schedule       = "True"
@@ -242,4 +243,26 @@ module "route53_domain" {
   zone_id = data.aws_route53_zone.ecs_domain.zone_id
   aws_alb_dnsname = module.alb_ec2.aws_alb_dnsname
   aws_alb_zoneid = module.alb_ec2.aws_alb_zoneid
+}
+
+
+resource "null_resource" "test_box" {
+  depends_on = [module.ec2_webserver]
+  provisioner "local-exec" {
+    # command = "ansible-playbook  -i ${module.ec2.aws_instance.nginx.public_ip}, --private-key ${local.private_key_path} nginx_ansible.yaml"
+    # command = "ansible-playbook  -i ${module.s3.nginx_ip}, --private-key ${local.private_key_path} nginx.yaml"
+    # command = "ansible-playbook  -i ${module.s3.nginx_ip}, --private-key vamakp.pem nginx.yaml"
+    # command = "ansible-playbook  -i localhost, --private-key vamakp.pem ../ansible/nginx.yaml" 
+    #  command = "ansible-playbook  -i localhost ../ansible/nginx.yaml"
+    command = "ansible-playbook  -i ${module.ec2_webserver.ec2_public_ip}, --private-key RecommedationEngineeKP.pem ${local.ansible_playbook}"
+    # command = "ansible-playbook  -i localhost ${local.ansible_playbook}"
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Create sh files for ec2 ssh login and running playbook during development work"
+      echo ssh -i RecommedationEngineeKP.pem ec2-user@${module.ec2_webserver.ec2_public_ip} > amazonlinux2.sh
+      echo ansible-playbook -i ${module.ec2_webserver.ec2_public_ip}, --user ec2-user --private-key RecommedationEngineeKP.pem ansible_playbook > run_playbook.sh
+    EOT
+  }
 }

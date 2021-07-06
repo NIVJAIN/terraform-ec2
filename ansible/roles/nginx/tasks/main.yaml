@@ -8,12 +8,9 @@
   shell: "ls -lrta"
   register: "output"
 - debug: var=output.stdout_lines
-# - name: configure / Update yum packages
-#   yum:
-#     name: '*'
-#     state: latest
-#     update_cache: yes
 
+
+# below is for ubuntu
 
 # - name: Install required system packages
 #   apt: name={{ item }} state=latest update_cache=yes
