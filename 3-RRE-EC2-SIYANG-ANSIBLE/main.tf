@@ -39,7 +39,7 @@ data "aws_acm_certificate" "ecs_domain_certificate" {
 # ------------------------------------------------------------------------------
 
 locals {
-  project_name       = "RRE-PROD"
+  project_name       = "RRE-TEST-JAIN"
   region             = "ap-southeast-1"
   init_tpl_file_name = "init.tpl"
   #   ami_id           = "ami-0d058fe428540cd89" #ububtu

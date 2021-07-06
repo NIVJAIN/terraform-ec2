@@ -101,7 +101,7 @@ locals {
   default_tags = {
     Environment    = "Dev"
     Owner          = "Siyang"
-    Project        = "RRE-STAGING"
+    Project        = local.project_name
     Requestor      = "Siyang"
     Creator        = "CloudTFEngineer"
     Terraform      = "True"
